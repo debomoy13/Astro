@@ -5,16 +5,10 @@ from lightkurve import search_lightcurve
 
 koi = pd.read_csv("cumulative_2026.06.24_09.53.31.csv" , comment='#')
 
-output_dir = "plots"
-os.makedirs(output_dir, exist_ok=True)
+subset=(
+    koi.groupby("signal_class", group_keys=False).head(100)
+)
+os.makedirs("dataset", exit_ok=True)
 
-for kepid in koi["kepid"]:
-
-    lc= search_lightcurve(
-        f"KIC {kepid}",
-        mission ="Kepler"
-        ).download()
-    lc.plot()
-    plt.savefig(os.path.join(output_dir, f"KIC_{kepid}.png"))
-    plt.close()
+records=[]
 
