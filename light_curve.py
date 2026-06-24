@@ -11,7 +11,7 @@ os.makedirs(output_dir, exist_ok=True)
 for kepid in koi["kepid"]:
 
     lc= search_lightcurve(
-        f"KIC {sample("kepid")}",
+        f"KIC {kepid}",
         mission ="Kepler"
         ).download()
     lc.plot()
