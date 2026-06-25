@@ -7,13 +7,13 @@ import numpy as np
 koi = pd.read_csv("koi_cumulative_labeled.csv" , comment='#')
 
 subset=(
-    koi.groupby("signal_class", group_keys=False).head(100)
+    koi.groupby("signal_class", group_keys=False).head(10)
 )
 os.makedirs("dataset", exist_ok=True)
 
 records=[]
 
-for row in subset.iterrows():
+for _,row in subset.iterrows():
     kepid = row["kepid"]
     label = row["signal_class"]
     lc = search_lightcurve(f"KIC {kepid}", mission="kepler").download()
