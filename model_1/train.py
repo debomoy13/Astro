@@ -36,10 +36,10 @@ def run_pipeline(config=Config):
     class_weights = torch.zeros(config.NUM_CLASSES)
     for c in range(config.NUM_CLASSES):
         count = class_counts.get(c, 0)
-        class_weights[c] = total_samples / (config.NUM_CLASSES * count) if count > 0 else 1.0
+        class_weights[c] = np.sqrt(total_samples / (config.NUM_CLASSES * count)) if count > 0 else 1.0
         
     print(f"Class counts in training set: {class_counts.to_dict()}")
-    print(f"Computed class weights: {class_weights.tolist()}")
+    print(f"Computed class weights (smoothed): {class_weights.tolist()}")
 
     # 2. Build Model
     print("Building Exoplanet Deep Model...")

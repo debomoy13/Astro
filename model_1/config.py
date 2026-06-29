@@ -84,11 +84,11 @@ class Config:
     # ------------------
     BATCH_SIZE = 32
     EPOCHS = 40
-    LEARNING_RATE = 1e-3
+    LEARNING_RATE = 2e-4
     WEIGHT_DECAY = 1e-4
     GRADIENT_CLIPPING = 5.0
     MIXED_PRECISION = True
-    EARLY_STOPPING_PATIENCE = 8
+    EARLY_STOPPING_PATIENCE = 15
     
     # Class mapping
     LABEL_MAPPING = {
