@@ -95,7 +95,13 @@ class MultiTaskLoss(nn.Module):
             loss_midpoint = torch.tensor(0.0, device=reg_outputs.device)
 
         # 3. Confidence Head Loss (BCE)
-        loss_conf = self.conf_loss_fn(confidence, targets_conf)
+        # Disable mixed precision autocasting specifically for BCELoss to avoid unsafe cast RuntimeError
+        device_type = confidence.device.type
+        if device_type in ['cuda', 'cpu']:
+            with torch.amp.autocast(device_type=device_type, enabled=False):
+                loss_conf = self.conf_loss_fn(confidence.float(), targets_conf.float())
+        else:
+            loss_conf = self.conf_loss_fn(confidence.float(), targets_conf.float())
 
         # 4. Weighted Total Loss
         total_loss = (

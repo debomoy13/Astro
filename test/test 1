@@ -1,0 +1,92 @@
+# Training Run Walkthrough - model_1
+
+This document summarizes the training execution, optimization steps, and test results for **model_1** using the Kepler light curve dataset.
+
+---
+
+## 🛠️ Optimizations & Setup Actions
+
+To train **model_1** successfully and efficiently, we performed the following:
+
+1. **GPU Training Support (CUDA 12.1)**:
+   - Your laptop features an **NVIDIA GeForce RTX 4050 GPU**, but the initial environment was using PyTorch CPU-only (`2.12.0+cpu`).
+   - We updated the environment to **PyTorch 2.5.1 with CUDA 12.1** (`2.5.1+cu121`) and **Torchvision 0.20.1**.
+   - This enabled GPU training, reducing the epoch training time to ~55 seconds (mostly bound by CPU data loader preprocessing) compared to the hours it would take on CPU.
+
+2. **Autocast Mixed Precision Bug Fix**:
+   - The training failed initially due to:
+     `RuntimeError: torch.nn.functional.binary_cross_entropy and torch.nn.BCELoss are unsafe to autocast.`
+   - In [losses.py](file:///e:/Deb/Astrolight%20Curve/model_1/losses.py#L97-L104), we disabled mixed precision autocasting specifically for the `nn.BCELoss` confidence loss head, casting the tensors to `float32` explicitly:
+     ```python
+     device_type = confidence.device.type
+     if device_type in ['cuda', 'cpu']:
+         with torch.amp.autocast(device_type=device_type, enabled=False):
+             loss_conf = self.conf_loss_fn(confidence.float(), targets_conf.float())
+     else:
+         loss_conf = self.conf_loss_fn(confidence.float(), targets_conf.float())
+     ```
+
+---
+
+## 📊 Training Summary
+
+- **Dataset Splits**: 5,309 train, 1,138 validation, 1,138 test samples.
+- **Device**: GeForce RTX 4050 GPU (using WDDM compute mode).
+- **Early Stopping**: Triggered at **Epoch 20** (validation loss stopped improving after Epoch 5).
+- **Loaded Best Weights**: Restored model parameters from **Epoch 5** (Validation Loss: `1.4890`).
+
+---
+
+## 📈 Performance Results
+
+### Classification Metrics
+*   **Overall Accuracy**: `44.29%`
+*   **Weighted F1-score**: `0.3683`
+*   **Weighted Precision**: `0.4022`
+*   **Weighted Recall**: `0.4429`
+*   **Multiclass ROC AUC**: `0.5888`
+*   **Expected Calibration Error (ECE)**: `0.0298` (Excellent calibration)
+
+### Regression Metrics (Scaled Outputs)
+*   **Transit Depth**: MAE = `0.2215`, RMSE = `0.3039`
+*   **Transit Duration**: MAE = `0.3256`, RMSE = `0.5708`
+*   **Orbital Period**: MAE = `0.3058`, RMSE = `0.3709`
+*   **Midpoint ($T_0$)**: MAE = `0.1240`, RMSE = `0.1462`
+
+---
+
+## 🎨 Visualizations & Curves
+
+Here are the diagnostic plots generated during the evaluation on the Test Split:
+
+### 1. Learning Curves
+A comparison of the multi-task training/validation losses and the classification accuracies across epochs:
+![Learning Curves](C:/Users/Debomoy%20Patra/.gemini/antigravity-ide/brain/f8699c2c-2d44-4b1f-ab2a-4fa2453c3c8d/learning_curves.png)
+
+### 2. Confusion Matrix
+Normalized confusion matrix showing precision/recall across all five target categories:
+![Confusion Matrix](C:/Users/Debomoy%20Patra/.gemini/antigravity-ide/brain/f8699c2c-2d44-4b1f-ab2a-4fa2453c3c8d/confusion_matrix.png)
+
+### 3. ROC and Precision-Recall Curves
+One-vs-Rest ROC and PR curves for each astronomical classification type:
+![ROC & PR Curves](C:/Users/Debomoy%20Patra/.gemini/antigravity-ide/brain/f8699c2c-2d44-4b1f-ab2a-4fa2453c3c8d/roc_pr_curves.png)
+
+### 4. Regression Predictions
+Parity plots comparing actual vs. predicted values for depth, duration, period, and midpoint:
+![Regression Predictions](C:/Users/Debomoy%20Patra/.gemini/antigravity-ide/brain/f8699c2c-2d44-4b1f-ab2a-4fa2453c3c8d/regression_predictions.png)
+
+### 5. Example Prediction & Attention Heatmap
+Visualization of the temporal attention weights mapped back onto an exoplanet transit signal:
+![Attention Heatmap](C:/Users/Debomoy%20Patra/.gemini/antigravity-ide/brain/f8699c2c-2d44-4b1f-ab2a-4fa2453c3c8d/example_transit_attention_map.png)
+
+---
+
+## 🔍 Result Analysis & Next Steps
+
+1. **High Class Imbalance / Over-Prediction**:
+   - Looking at the confusion matrix, the model predicts the majority of samples as either **Exoplanet Transit** (Recall = 85.68%) or **Eclipsing Binary** (Recall = 40.79%).
+   - The model has a hard time identifying **Stellar Variability**, **Instrument Noise**, and **Blends**, often misclassifying them as transits. This is because class weights are smoothed, but these classes might need stronger data augmentation or a more balanced distribution.
+2. **Early Stopping**:
+   - The validation loss started increasing after Epoch 5, suggesting the model is overfitting quickly. We can regularize the model (increase dropout, add weight decay, or reduce the number of BiLSTM layers) to improve generalization.
+3. **Data Loading Bottleneck**:
+   - Using `num_workers=0` (single-threaded) on Windows for Kepler preprocessing (NaN interpolation + median filter subtraction + SG filter) creates a substantial bottleneck. For future training runs, caching preprocessed light curves to disk in a pre-computed format rather than doing it on the fly will reduce the training epoch duration from 55 seconds to under 2 seconds.

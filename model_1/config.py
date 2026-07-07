@@ -32,7 +32,7 @@ class Config:
     # Preprocessing
     # ------------------
     SEQUENCE_LENGTH = 2000          # Option A: Full light curve sequence length
-    USE_BLS_WINDOWS = False          # Toggle between Option A (Full Curve) and Option B (BLS Windows)
+    USE_BLS_WINDOWS = True          # Toggle between Option A (Full Curve) and Option B (BLS Windows)
     BLS_WINDOW_SIZE = 200           # Option B: Candidate window length
     ALIGN_METHOD = 'edge'           # 'edge', 'zero', 'symmetric' padding
     NORM_METHOD = 'zscore'          # 'zscore', 'minmax', 'median'
