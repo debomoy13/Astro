@@ -60,7 +60,7 @@ class ExoplanetDataset(Dataset):
         
         # 2. Transit confidence target (1.0 for true transits, 0.0 for false positives/other)
         confidence = 1.0 if class_idx == 0 else 0.0
-        y_conf = torch.tensor([confidence], dtype=torch.float32)
+        y_confidence = torch.tensor([confidence], dtype=torch.float32)
         
         # 3. Retrieve folding parameters
         period = float(row["koi_period"]) if not pd.isna(row["koi_period"]) else 0.0
@@ -109,14 +109,14 @@ class ExoplanetDataset(Dataset):
         x_local = torch.tensor(local_view, dtype=torch.float32).unsqueeze(0)
         
         # 6. Scaled regression targets for multi-task learning
-        y_reg = torch.tensor([
+        y_regression = torch.tensor([
             np.log1p(max(0.0, float(row["koi_depth"]))) / 10.0 if not pd.isna(row["koi_depth"]) else 0.0,
             duration / 10.0,
             np.log1p(max(0.0, period)) / 5.0,
             np.log1p(abs(epoch)) / 10.0
         ], dtype=torch.float32)
         
-        return x_global, x_local, x_stellar, y_class, y_reg, y_conf
+        return x_global, x_local, x_stellar, y_class, y_regression, y_confidence
 
 
 def get_data_loaders(csv_path, dataset_dir, batch_size=32, test_size=0.15, val_size=0.15, seed=42):
