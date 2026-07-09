@@ -1,17 +1,17 @@
 import numpy as np
 
 def remove_outliers(time, flux, sigma=5.0):
-    # Removes outliers that are beyond 5 standard deviations from the median flux.
+    # Removes outliers that are beyond 5 standard deviations from the mean flux.
     if len(flux) == 0:
         return time, flux
     
-    median_val = np.median(flux)
+    mean_val = np.mean(flux)
     std_val = np.std(flux)
     
     if std_val == 0:
         return time, flux
         
-    mask = np.abs(flux - median_val) <= sigma * std_val
+    mask = np.abs(flux - mean_val) <= sigma * std_val
     return time[mask], flux[mask]
 
 
