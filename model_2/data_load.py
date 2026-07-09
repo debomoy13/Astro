@@ -14,15 +14,24 @@ class ExoplanetDataset(Dataset):
         self.dataset_dir = dataset_dir
         self.augment = augment
         
-        # Stellar features to extract from the catalog
+        # Catalog features to extract:
+        # 1. Orbital period P (koi_period)
+        # 2. Transit duration \Delta t (koi_duration)
+        # 3. Transit depth \delta (koi_depth)
+        # 4. Planet radius Rp (koi_prad)
+        # 5. Equilibrium temperature Teq (koi_teq)
+        # 6. Stellar effective temperature Teff (koi_steff)
+        # 7. Stellar surface gravity log g (koi_slogg)
+        # 8. Stellar metallicity [Fe/H] (koi_smet)
         self.stellar_cols = [
-            'koi_steff',  # Stellar effective temperature
-            'koi_slogg',  # Stellar surface gravity
-            'koi_smet',   # Stellar metallicity
-            'koi_srad',   # Stellar radius
-            'koi_smass',  # Stellar mass
-            'koi_sage',   # Stellar age
-            'koi_kepmag'  # Kepler magnitude
+            'koi_period',
+            'koi_duration',
+            'koi_depth',
+            'koi_prad',
+            'koi_teq',
+            'koi_steff',
+            'koi_slogg',
+            'koi_smet'
         ]
         # Calculate medians for filling NaN catalog entries
         self.stellar_medians = self.df_meta[self.stellar_cols].median()
@@ -58,7 +67,7 @@ class ExoplanetDataset(Dataset):
         epoch = float(row["koi_time0bk"]) if not pd.isna(row["koi_time0bk"]) else 0.0
         duration = float(row["koi_duration"]) if not pd.isna(row["koi_duration"]) else 0.0
         
-        # 4. Extract stellar features and fill NaNs
+        # 4. Extract catalog features and fill NaNs
         stellar_vals = []
         for col in self.stellar_cols:
             val = row[col]
