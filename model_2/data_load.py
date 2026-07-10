@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
-from preprocess import preprocess_light_curve
+from preprocess import preprocess_light_curve, augment_view
 
 class ExoplanetDataset(Dataset):
     # PyTorch Dataset that loads target metadata, stellar catalog parameters,
@@ -45,6 +45,7 @@ class ExoplanetDataset(Dataset):
             'Ephemeris match': 4,
             'unlabeled': 2
         }
+        self.cache = {}
 
     def __len__(self):
         return len(self.df_meta)
@@ -78,31 +79,39 @@ class ExoplanetDataset(Dataset):
         x_stellar = torch.tensor(stellar_vals, dtype=torch.float32)
         
         # 5. Load and preprocess light curve
-        file_path = os.path.join(self.dataset_dir, f"{kepid}.npz")
-        
-        if os.path.exists(file_path):
-            try:
-                data = np.load(file_path)
-                time = data["time"]
-                flux = data["flux"]
-                
-                # Perform phase folding, binning, and normalization
-                global_view, local_view = preprocess_light_curve(
-                    time=time,
-                    flux=flux,
-                    period=period,
-                    epoch=epoch,
-                    duration=duration,
-                    is_training=self.augment
-                )
-            except Exception:
-                # Fallback to zero vectors if npz file is corrupted
+        if idx in self.cache:
+            global_view, local_view = self.cache[idx]
+        else:
+            file_path = os.path.join(self.dataset_dir, f"{kepid}.npz")
+            if os.path.exists(file_path):
+                try:
+                    data = np.load(file_path)
+                    time = data["time"]
+                    flux = data["flux"]
+                    
+                    # Perform phase folding, binning, and normalization (without augmentation)
+                    global_view, local_view = preprocess_light_curve(
+                        time=time,
+                        flux=flux,
+                        period=period,
+                        epoch=epoch,
+                        duration=duration,
+                        is_training=False
+                    )
+                except Exception:
+                    # Fallback to zero vectors if npz file is corrupted
+                    global_view = np.zeros(1001, dtype=np.float32)
+                    local_view = np.zeros(1001, dtype=np.float32)
+            else:
+                # Handle missing files by setting both representations to zero vectors
                 global_view = np.zeros(1001, dtype=np.float32)
                 local_view = np.zeros(1001, dtype=np.float32)
-        else:
-            # Handle missing files by setting both representations to zero vectors
-            global_view = np.zeros(1001, dtype=np.float32)
-            local_view = np.zeros(1001, dtype=np.float32)
+            self.cache[idx] = (global_view, local_view)
+            
+        # Apply augmentations if training
+        if self.augment:
+            global_view = augment_view(global_view)
+            local_view = augment_view(local_view)
             
         # Convert views to tensors and add channel dimension: shape (1, 1001)
         x_global = torch.tensor(global_view, dtype=torch.float32).unsqueeze(0)
