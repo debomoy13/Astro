@@ -84,24 +84,18 @@ class ExoplanetDataset(Dataset):
         else:
             file_path = os.path.join(self.dataset_dir, f"{kepid}.npz")
             if os.path.exists(file_path):
-                try:
-                    data = np.load(file_path)
-                    time = data["time"]
-                    flux = data["flux"]
-                    
-                    # Perform phase folding, binning, and normalization (without augmentation)
-                    global_view, local_view = preprocess_light_curve(
-                        time=time,
-                        flux=flux,
-                        period=period,
-                        epoch=epoch,
-                        duration=duration,
-                        is_training=False
-                    )
-                except Exception:
-                    # Fallback to zero vectors if npz file is corrupted
-                    global_view = np.zeros(1001, dtype=np.float32)
-                    local_view = np.zeros(1001, dtype=np.float32)
+                data = np.load(file_path)
+                time = data["time"]
+                flux = data["flux"]            
+                # Perform phase folding, binning, and normalization (without augmentation)
+                global_view, local_view = preprocess_light_curve(
+                    time=time,
+                    flux=flux,
+                    period=period,
+                    epoch=epoch,
+                    duration=duration,
+                    is_training=False
+                )
             else:
                 # Handle missing files by setting both representations to zero vectors
                 global_view = np.zeros(1001, dtype=np.float32)
