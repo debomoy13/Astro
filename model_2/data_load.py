@@ -9,20 +9,12 @@ from preprocess import preprocess_light_curve, augment_view
 class ExoplanetDataset(Dataset):
     # PyTorch Dataset that loads target metadata, stellar catalog parameters,
     # and light curve files. Handles missing files by generating zero-vector inputs.
-    def __init__(self, df_meta, dataset_dir, augment=False):
+    def __init__(self, df_meta, dataset_dir, augment=False, stats=None):
         self.df_meta = df_meta.reset_index(drop=True)
         self.dataset_dir = dataset_dir
         self.augment = augment
         
-        # Catalog features to extract:
-        # 1. Orbital period P (koi_period)
-        # 2. Transit duration \Delta t (koi_duration)
-        # 3. Transit depth \delta (koi_depth)
-        # 4. Planet radius Rp (koi_prad)
-        # 5. Equilibrium temperature Teq (koi_teq)
-        # 6. Stellar effective temperature Teff (koi_steff)
-        # 7. Stellar surface gravity log g (koi_slogg)
-        # 8. Stellar metallicity [Fe/H] (koi_smet)
+        # Catalog features to extract (8 stellar parameters + 4 ExoMiner++ diagnostics)
         self.stellar_cols = [
             'koi_period',
             'koi_duration',
@@ -31,10 +23,22 @@ class ExoplanetDataset(Dataset):
             'koi_teq',
             'koi_steff',
             'koi_slogg',
-            'koi_smet'
+            'koi_smet',
+            'koi_bin_oedp_sig',  # Odd-even depth difference significance (Eclipsing Binary check)
+            'koi_fwm_stat_sig',  # Centroid shift significance (Centroid Offset check)
+            'koi_dicco_msky',    # Difference image centroid offset (Centroid Offset check)
+            'koi_model_snr'      # Signal-to-noise ratio (Noise check)
         ]
-        # Calculate medians for filling NaN catalog entries
-        self.stellar_medians = self.df_meta[self.stellar_cols].median()
+        
+        # Z-score normalization and median filling setup
+        if stats is not None:
+            self.stellar_medians = stats['medians']
+            self.stellar_means = stats['means']
+            self.stellar_stds = stats['stds']
+        else:
+            self.stellar_medians = self.df_meta[self.stellar_cols].median()
+            self.stellar_means = self.df_meta[self.stellar_cols].mean()
+            self.stellar_stds = self.df_meta[self.stellar_cols].std().replace(0.0, 1.0).fillna(1.0)
         
         # Label mapping matching the standard configuration
         self.label_mapping = {
@@ -68,14 +72,16 @@ class ExoplanetDataset(Dataset):
         epoch = float(row["koi_time0bk"]) if not pd.isna(row["koi_time0bk"]) else 0.0
         duration = float(row["koi_duration"]) if not pd.isna(row["koi_duration"]) else 0.0
         
-        # 4. Extract catalog features and fill NaNs
         stellar_vals = []
         for col in self.stellar_cols:
             val = row[col]
             if pd.isna(val):
-                stellar_vals.append(float(self.stellar_medians[col]))
+                val = float(self.stellar_medians[col])
             else:
-                stellar_vals.append(float(val))
+                val = float(val)
+            # Apply Z-score normalization to catalog features
+            normalized_val = (val - self.stellar_means[col]) / self.stellar_stds[col]
+            stellar_vals.append(normalized_val)
         x_stellar = torch.tensor(stellar_vals, dtype=torch.float32)
         
         # 5. Load and preprocess light curve
@@ -162,8 +168,16 @@ def get_data_loaders(csv_path, dataset_dir, batch_size=32, test_size=0.15, val_s
     
     # Instantiate PyTorch datasets
     train_ds = ExoplanetDataset(train_df, dataset_dir, augment=True)
-    val_ds = ExoplanetDataset(val_df, dataset_dir, augment=False)
-    test_ds = ExoplanetDataset(test_df, dataset_dir, augment=False)
+    
+    # Pass train split normalization statistics to val/test sets to prevent leakage
+    train_stats = {
+        'medians': train_ds.stellar_medians,
+        'means': train_ds.stellar_means,
+        'stds': train_ds.stellar_stds
+    }
+    
+    val_ds = ExoplanetDataset(val_df, dataset_dir, augment=False, stats=train_stats)
+    test_ds = ExoplanetDataset(test_df, dataset_dir, augment=False, stats=train_stats)
     
     # Construct standard DataLoaders
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=True)

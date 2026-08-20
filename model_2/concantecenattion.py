@@ -84,13 +84,13 @@ class ExoplanetLateFusionModel(nn.Module):
        - Regression (4 parameters: depth, duration, period, epoch)
        - Confidence (1 transit probability parameter)
     """
-    def __init__(self, num_classes=5, temperature=1.0):
+    def __init__(self, num_classes=5, temperature=1.0, in_features=12):
         super().__init__()
         
         # Instantiate three parallel feature extraction pipelines
         self.global_branch = GlobalViewBranch()
         self.local_branch = LocalViewBranch()
-        self.stellar_branch = StellarFeaturesBranch()
+        self.stellar_branch = StellarFeaturesBranch(in_features=in_features)
         
         # Instantiate late-fusion residual MLP head (640-d input -> 256-d output)
         self.late_fusion_head = ResidualLateFusionHead(
@@ -162,7 +162,7 @@ if __name__ == "__main__":
     
     x_global = torch.randn(batch_size, 1, 1001)
     x_local = torch.randn(batch_size, 1, 1001)
-    x_stellar = torch.randn(batch_size, 8)
+    x_stellar = torch.randn(batch_size, 12)
     
     class_logits, reg_outputs, confidence, global_attn, local_attn = model(x_global, x_local, x_stellar)
     probs = model.get_probabilities(class_logits)

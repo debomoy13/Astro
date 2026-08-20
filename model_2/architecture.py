@@ -156,12 +156,12 @@ class StellarFeaturesBranch(nn.Module):
     """
     Stellar Features Pipeline:
     - Two fully connected layers (64 then 128 units) with LayerNorm and GELU activations.
-    - Maps the 8-dimensional stellar feature vector to a 128-dimensional embedding.
+    - Maps the 12-dimensional stellar and diagnostic feature vector to a 128-dimensional embedding.
     """
-    def __init__(self, in_features=8):
+    def __init__(self, in_features=12):
         super().__init__()
         
-        # Layer 1: 8 -> 64 dimensions
+        # Layer 1: in_features -> 64 dimensions
         self.fc1 = nn.Linear(in_features, 64)
         self.ln1 = nn.LayerNorm(64)
         self.gelu1 = nn.GELU()

@@ -156,8 +156,16 @@ def train_model(args):
     
     # 3. Create sampler and dataloaders
     train_ds = ExoplanetDataset(train_df, args.dataset_dir, augment=True)
-    val_ds = ExoplanetDataset(val_df, args.dataset_dir, augment=False)
-    test_ds = ExoplanetDataset(test_df, args.dataset_dir, augment=False)
+    
+    # Pass train split normalization statistics to val/test sets to prevent leakage
+    train_stats = {
+        'medians': train_ds.stellar_medians,
+        'means': train_ds.stellar_means,
+        'stds': train_ds.stellar_stds
+    }
+    
+    val_ds = ExoplanetDataset(val_df, args.dataset_dir, augment=False, stats=train_stats)
+    test_ds = ExoplanetDataset(test_df, args.dataset_dir, augment=False, stats=train_stats)
     
     # Weighted Random Sampler to balance training batches
     train_labels = train_df["label_idx"].values
