@@ -161,7 +161,8 @@ def train_model(args):
     
     # Weighted Random Sampler to balance training batches
     train_labels = train_df["label_idx"].values
-    sample_weights = [inv_freq[label] for label in train_labels]
+    sample_weights = [inv_freq[label] * (args.ephemeris_boost if label == 4 else 1.0) for label in train_labels]
+    print(f"Applied 'Ephemeris match' class (label 4) sampling boost: {args.ephemeris_boost}x")
     sampler = WeightedRandomSampler(
         weights=sample_weights,
         num_samples=len(sample_weights),
@@ -205,7 +206,7 @@ def train_model(args):
     criterion = ExoplanetMultiTaskLoss(class_weights=class_weights)
     
     # Setup mixed-precision scaling
-    use_amp = (device.type == 'cuda') and (not args.no_amp)
+    use_amp = (device.type == 'cuda') and args.use_amp
     scaler = torch.amp.GradScaler('cuda') if use_amp else None
     
     # 5. Training loop with early stopping on validation ROC AUC
@@ -401,7 +402,8 @@ if __name__ == "__main__":
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="AdamW weight decay parameter")
     parser.add_argument("--patience", type=int, default=20, help="Early stopping epoch patience limit")
     parser.add_argument("--dry_run", action="store_true", help="Perform a fast shape/pipeline dry run")
-    parser.add_argument("--no_amp", action="store_true", help="Disable automatic mixed precision (AMP) / mixed precision training to prevent NaN issues with raw features")
+    parser.add_argument("--use_amp", action="store_true", help="Enable automatic mixed precision (AMP) / mixed precision training (might cause NaN issues with raw features)")
+    parser.add_argument("--ephemeris_boost", type=float, default=2.0, help="Multiplicative boost factor for 'Ephemeris match' class sampling weight")
     
     args = parser.parse_args()
     

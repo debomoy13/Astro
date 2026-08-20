@@ -185,10 +185,4 @@ class StellarFeaturesBranch(nn.Module):
         return out
 
 
-if __name__ == "__main__":
-    print("=" * 60)
-    print("MOCK TENSOR DIMENSIONALITY CHECKS")
-    print("=" * 60)
-    
-    batch_size = 4
     
