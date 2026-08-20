@@ -1,0 +1,20 @@
+ 0.8992 Validation ROC AUC is a very strong result for a complex 5-class astronomical vetting task.
+
+Here is an analysis of why this is a good start, along with some observations and recommendations to improve it further:
+
+Why this is a good result
+Multi-class vs. Binary: Distinguishing between 5 distinct astronomical classes (rather than just doing binary "exoplanet vs. noise") is a significantly harder task. Achieving $\approx 0.90$ AUC shows the model is highly capable of separating these distinct failure modes.
+Class Imbalance: Your training set has severe class imbalances (e.g., 3,307 transits vs. only 87 Ephemeris matches). The model successfully navigated this imbalance and learned meaningful features.
+Data Caching Efficiency: The caching in 
+
+model_2/data_load.py
+ worked perfectly. The first epoch took 166.2s (loading and preprocessing fits/npz files), but subsequent epochs immediately dropped to ~14s because files were retrieved from memory.
+Key Observations from the Logs
+Optimization Instability (Epoch 5): In Epoch 5, the validation loss spiked to 3.64 and the validation AUC dropped to 0.7497. This is common when utilizing a WeightedRandomSampler with sharp gradients, but the model successfully recovered by Epoch 8. Z-score normalization likely kept this spike from causing gradient explosions.
+Early Stopping: Triggering early stopping around Epoch 30-35 (saving the best checkpoint from Epoch 10-15) worked as designed to prevent the model from overfitting to the training set.
+How to push it past 0.90+
+If you want to squeeze out more performance, consider the following tweaks:
+
+Examine the Confusion Matrix: Run inference on your test split and generate a confusion matrix. This will show you exactly which classes are being confused (e.g., are eclipsing binaries being classified as transits?).
+Lower the Learning Rate: The default learning rate is 1e-3. Try running with --lr 5e-4 or --lr 3e-4. A slightly lower peak learning rate will smooth out spikes (like the one in Epoch 5) and help the model settle into a better local minimum.
+Address the Ephemeris Match class: Class 4 (Ephemeris match) has only 87 samples in training. If the confusion matrix shows the model is failing to detect this class, you can increase the --ephemeris_boost parameter (currently 2.0) to give it more weight during training.
