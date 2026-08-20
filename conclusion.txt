@@ -18,3 +18,26 @@ If you want to squeeze out more performance, consider the following tweaks:
 Examine the Confusion Matrix: Run inference on your test split and generate a confusion matrix. This will show you exactly which classes are being confused (e.g., are eclipsing binaries being classified as transits?).
 Lower the Learning Rate: The default learning rate is 1e-3. Try running with --lr 5e-4 or --lr 3e-4. A slightly lower peak learning rate will smooth out spikes (like the one in Epoch 5) and help the model settle into a better local minimum.
 Address the Ephemeris Match class: Class 4 (Ephemeris match) has only 87 samples in training. If the confusion matrix shows the model is failing to detect this class, you can increase the --ephemeris_boost parameter (currently 2.0) to give it more weight during training.
+
+
+
+
+QUESTIONS TO ANSWER TO MAKE IT IMPRESSIVE ?
+
+What dataset?
+How many light curves?
+How did you label them?
+Why CNN?
+Why attention?
+What is the baseline?
+What was your F1?
+What was your recall?
+What did the model get wrong?
+Why global + local view?
+What does the stellar feature branch contribute?
+What preprocessing did you use?
+Why PyTorch?
+What did you improve over existing approaches?
+Did you reproduce an existing paper?
+Did you conduct an ablation?
+Can I see the GitHub?
