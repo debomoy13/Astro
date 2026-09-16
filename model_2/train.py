@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from sklearn.model_selection import train_test_split
@@ -18,23 +19,53 @@ except ImportError:
     from data_load import ExoplanetDataset
     from concantecenattion import ExoplanetLateFusionModel
 
+class FocalLoss(nn.Module):
+    """
+    Multi-class Focal Loss (Lin et al., 2017).
+
+    Adds a modulating factor (1 - p_t)^gamma to the standard Cross Entropy loss.
+    This down-weights easy / over-confident predictions and focuses training on
+    hard mis-classified examples — directly addressing the centroid_offset
+    over-prediction bias (low precision, high false-positive rate).
+
+    When gamma=0, this reduces to standard weighted CrossEntropyLoss.
+    gamma=2.0 is the value recommended in the original RetinaNet paper.
+    """
+    def __init__(self, gamma=2.0, weight=None):
+        super().__init__()
+        self.gamma = gamma
+        self.weight = weight
+
+    def forward(self, input, target):
+        # Compute standard (per-sample) cross entropy — shape: (B,)
+        ce_loss = F.cross_entropy(input, target, weight=self.weight, reduction='none')
+        # p_t: probability assigned to the correct class
+        pt = torch.exp(-ce_loss)
+        # Focal modulating factor: down-weights confident correct predictions
+        focal_weight = (1.0 - pt) ** self.gamma
+        # Final focal loss
+        return (focal_weight * ce_loss).mean()
+
+
 class ExoplanetMultiTaskLoss(nn.Module):
     """
     Computes joint loss combining:
-    1. Inverse-frequency weighted multi-class Cross Entropy for classification.
+    1. Inverse-frequency weighted Focal Loss for classification.
+       Focal Loss reduces over-confident centroid_offset predictions by
+       down-weighting easy samples via the (1-p_t)^gamma term.
     2. Masked Mean Squared Error (MSE) for transit regression parameters (only on true transit samples, label = 0).
     3. Binary Cross Entropy (BCE) for transit confidence scores.
     """
-    def __init__(self, class_weights=None, lambda_reg=0.4, lambda_conf=1.0):
+    def __init__(self, class_weights=None, lambda_reg=0.4, lambda_conf=1.0, focal_gamma=2.0):
         super().__init__()
-        self.class_loss_fn = nn.CrossEntropyLoss(weight=class_weights)
+        self.class_loss_fn = FocalLoss(gamma=focal_gamma, weight=class_weights)
         self.reg_loss_fn = nn.MSELoss(reduction='none')
         self.conf_loss_fn = nn.BCELoss()
         self.lambda_reg = lambda_reg
         self.lambda_conf = lambda_conf
 
     def forward(self, class_logits, reg_outputs, confidence, targets_class, targets_reg, targets_conf):
-        # 1. Classification Loss (Weighted Cross Entropy)
+        # 1. Classification Loss (Focal Loss)
         loss_class = self.class_loss_fn(class_logits, targets_class)
         
         # 2. Masked Regression Loss (computed ONLY on True Transit samples where target label is 0)
@@ -211,7 +242,8 @@ def train_model(args):
     )
     
     # Joint Loss Criterion
-    criterion = ExoplanetMultiTaskLoss(class_weights=class_weights)
+    criterion = ExoplanetMultiTaskLoss(class_weights=class_weights, focal_gamma=args.focal_gamma)
+    print(f"Using Focal Loss with gamma={args.focal_gamma} (gamma=0 reduces to standard CrossEntropy)")
     
     # Setup mixed-precision scaling
     use_amp = (device.type == 'cuda') and args.use_amp
@@ -412,6 +444,7 @@ if __name__ == "__main__":
     parser.add_argument("--dry_run", action="store_true", help="Perform a fast shape/pipeline dry run")
     parser.add_argument("--use_amp", action="store_true", help="Enable automatic mixed precision (AMP) / mixed precision training (might cause NaN issues with raw features)")
     parser.add_argument("--ephemeris_boost", type=float, default=2.0, help="Multiplicative boost factor for 'Ephemeris match' class sampling weight")
+    parser.add_argument("--focal_gamma", type=float, default=2.0, help="Focal Loss gamma (focusing) parameter. gamma=0 is standard CrossEntropy; gamma=2 is the recommended default for imbalanced classification")
     
     args = parser.parse_args()
     
