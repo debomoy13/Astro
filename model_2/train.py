@@ -242,8 +242,16 @@ def train_model(args):
     )
     
     # Joint Loss Criterion
-    criterion = ExoplanetMultiTaskLoss(class_weights=class_weights, focal_gamma=args.focal_gamma)
-    print(f"Using Focal Loss with gamma={args.focal_gamma} (gamma=0 reduces to standard CrossEntropy)")
+    # NOTE: When using Focal Loss (gamma > 0), we do NOT pass class_weights into the loss.
+    # WeightedRandomSampler already balances class frequencies at the data level.
+    # Stacking class_weights on top of Focal Loss + Sampler causes over-correction and model collapse.
+    # class_weights are only applied when gamma=0 (i.e. standard CrossEntropyLoss mode).
+    focal_class_weights = class_weights if args.focal_gamma == 0.0 else None
+    criterion = ExoplanetMultiTaskLoss(class_weights=focal_class_weights, focal_gamma=args.focal_gamma)
+    if args.focal_gamma > 0:
+        print(f"Using Focal Loss with gamma={args.focal_gamma} | class_weights removed (WeightedRandomSampler handles imbalance)")
+    else:
+        print(f"Using standard CrossEntropyLoss with inverse-frequency class_weights")
     
     # Setup mixed-precision scaling
     use_amp = (device.type == 'cuda') and args.use_amp
