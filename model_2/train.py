@@ -38,7 +38,9 @@ class FocalLoss(nn.Module):
 
     def forward(self, input, target):
         # Compute standard (per-sample) cross entropy — shape: (B,)
-        ce_loss = F.cross_entropy(input, target, weight=self.weight, reduction='none')
+        # Move weight to the same device as input to avoid cuda/cpu mismatch
+        weight = self.weight.to(input.device) if self.weight is not None else None
+        ce_loss = F.cross_entropy(input, target, weight=weight, reduction='none')
         # p_t: probability assigned to the correct class
         pt = torch.exp(-ce_loss)
         # Focal modulating factor: down-weights confident correct predictions
@@ -56,9 +58,21 @@ class ExoplanetMultiTaskLoss(nn.Module):
     2. Masked Mean Squared Error (MSE) for transit regression parameters (only on true transit samples, label = 0).
     3. Binary Cross Entropy (BCE) for transit confidence scores.
     """
-    def __init__(self, class_weights=None, lambda_reg=0.4, lambda_conf=1.0, focal_gamma=2.0):
+    def __init__(self, class_weights=None, lambda_reg=0.4, lambda_conf=1.0, focal_gamma=2.0, ephemeris_loss_weight=5.0):
         super().__init__()
-        self.class_loss_fn = FocalLoss(gamma=focal_gamma, weight=class_weights)
+        # Build selective weight tensor: only boost Ephemeris (class 4), leave others at 1.0
+        # This is safe because unlike full inverse-frequency weights, it only targets the
+        # one truly underrepresented class without over-correcting the already-balanced majority classes.
+        if class_weights is not None:
+            # CrossEntropy mode (gamma=0): use full inverse-frequency weights as-is
+            effective_weights = class_weights
+        elif ephemeris_loss_weight != 1.0:
+            # Focal Loss mode: selective weight only for Ephemeris match (class 4)
+            effective_weights = torch.ones(5, dtype=torch.float32)
+            effective_weights[4] = ephemeris_loss_weight
+        else:
+            effective_weights = None
+        self.class_loss_fn = FocalLoss(gamma=focal_gamma, weight=effective_weights)
         self.reg_loss_fn = nn.MSELoss(reduction='none')
         self.conf_loss_fn = nn.BCELoss()
         self.lambda_reg = lambda_reg
@@ -242,14 +256,18 @@ def train_model(args):
     )
     
     # Joint Loss Criterion
-    # NOTE: When using Focal Loss (gamma > 0), we do NOT pass class_weights into the loss.
-    # WeightedRandomSampler already balances class frequencies at the data level.
-    # Stacking class_weights on top of Focal Loss + Sampler causes over-correction and model collapse.
-    # class_weights are only applied when gamma=0 (i.e. standard CrossEntropyLoss mode).
+    # When using Focal Loss (gamma > 0):
+    #   - We do NOT use full inverse-frequency class_weights (caused collapse via over-correction)
+    #   - WeightedRandomSampler handles broad class imbalance at the data level
+    #   - A selective ephemeris_loss_weight ONLY boosts class 4 in the loss (safe, targeted)
     focal_class_weights = class_weights if args.focal_gamma == 0.0 else None
-    criterion = ExoplanetMultiTaskLoss(class_weights=focal_class_weights, focal_gamma=args.focal_gamma)
+    criterion = ExoplanetMultiTaskLoss(
+        class_weights=focal_class_weights,
+        focal_gamma=args.focal_gamma,
+        ephemeris_loss_weight=args.ephemeris_loss_weight
+    )
     if args.focal_gamma > 0:
-        print(f"Using Focal Loss with gamma={args.focal_gamma} | class_weights removed (WeightedRandomSampler handles imbalance)")
+        print(f"Using Focal Loss | gamma={args.focal_gamma} | ephemeris_loss_weight={args.ephemeris_loss_weight}x (class 4 only)")
     else:
         print(f"Using standard CrossEntropyLoss with inverse-frequency class_weights")
     
@@ -451,7 +469,8 @@ if __name__ == "__main__":
     parser.add_argument("--patience", type=int, default=20, help="Early stopping epoch patience limit")
     parser.add_argument("--dry_run", action="store_true", help="Perform a fast shape/pipeline dry run")
     parser.add_argument("--use_amp", action="store_true", help="Enable automatic mixed precision (AMP) / mixed precision training (might cause NaN issues with raw features)")
-    parser.add_argument("--ephemeris_boost", type=float, default=2.0, help="Multiplicative boost factor for 'Ephemeris match' class sampling weight")
+    parser.add_argument("--ephemeris_boost", type=float, default=2.0, help="Multiplicative boost factor for 'Ephemeris match' class sampling weight in WeightedRandomSampler")
+    parser.add_argument("--ephemeris_loss_weight", type=float, default=1.0, help="Selective loss weight applied ONLY to Ephemeris match (class 4) in FocalLoss. 1.0 = disabled (no selective weight). Values >1 boost Ephemeris in the loss.")
     parser.add_argument("--focal_gamma", type=float, default=2.0, help="Focal Loss gamma (focusing) parameter. gamma=0 is standard CrossEntropy; gamma=2 is the recommended default for imbalanced classification")
     
     args = parser.parse_args()

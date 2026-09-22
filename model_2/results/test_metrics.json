@@ -1,0 +1,134 @@
+{
+    "classification": {
+        "accuracy": 0.784,
+        "weighted_f1": 0.7905,
+        "macro_f1": 0.592,
+        "weighted_precision": 0.8167,
+        "weighted_recall": 0.784,
+        "roc_auc_ovr": 0.9246,
+        "per_class": {
+            "transit": {
+                "precision": 0.9292,
+                "recall": 0.9436,
+                "f1": 0.9363,
+                "support": 709
+            },
+            "stellar_eclipse": {
+                "precision": 0.8873,
+                "recall": 0.571,
+                "f1": 0.6949,
+                "support": 331
+            },
+            "not_transit": {
+                "precision": 0.621,
+                "recall": 0.7897,
+                "f1": 0.6953,
+                "support": 195
+            },
+            "centroid_offset": {
+                "precision": 0.5388,
+                "recall": 0.6133,
+                "f1": 0.5736,
+                "support": 181
+            },
+            "Ephemeris match": {
+                "precision": 0.0417,
+                "recall": 0.1053,
+                "f1": 0.0597,
+                "support": 19
+            }
+        },
+        "confusion_matrix": [
+            [
+                669,
+                6,
+                24,
+                5,
+                5
+            ],
+            [
+                13,
+                189,
+                43,
+                78,
+                8
+            ],
+            [
+                16,
+                11,
+                154,
+                7,
+                7
+            ],
+            [
+                14,
+                6,
+                24,
+                111,
+                26
+            ],
+            [
+                8,
+                1,
+                3,
+                5,
+                2
+            ]
+        ]
+    },
+    "regression": {
+        "depth": {
+            "scaled": {
+                "mae": 0.089532,
+                "rmse": 0.118746,
+                "r2": 0.308767
+            },
+            "physical": {
+                "mae": 829.3069,
+                "rmse": 3498.3462,
+                "r2": 0.0758
+            }
+        },
+        "duration": {
+            "scaled": {
+                "mae": 0.091421,
+                "rmse": 0.138799,
+                "r2": 0.831552
+            },
+            "physical": {
+                "mae": 0.9142,
+                "rmse": 1.388,
+                "r2": 0.8316
+            }
+        },
+        "period": {
+            "scaled": {
+                "mae": 0.114473,
+                "rmse": 0.148953,
+                "r2": 0.713551
+            },
+            "physical": {
+                "mae": 31.7849,
+                "rmse": 78.9148,
+                "r2": 0.4621
+            }
+        },
+        "epoch": {
+            "scaled": {
+                "mae": 0.03365,
+                "rmse": 0.04643,
+                "r2": -2.034087
+            },
+            "physical": {
+                "mae": 59.289,
+                "rmse": 107.2991,
+                "r2": -1.6522
+            }
+        }
+    },
+    "confidence_calibration": {
+        "ece": 0.0195,
+        "mean_confidence": 0.5099,
+        "true_transit_frac": 0.4941
+    }
+}
